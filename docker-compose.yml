@@ -9,12 +9,23 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=password
 
-  backend:
+  auth-service:
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongodb:27017/mydatabase?authSource=admin
+    depends_on:
+      - mongodb
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
     environment:
       - MONGODB_URI=mongodb://admin:password@mongodb:27017/mydatabase?authSource=admin
     depends_on:
