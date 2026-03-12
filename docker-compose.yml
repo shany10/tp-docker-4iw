@@ -42,5 +42,16 @@ services:
     depends_on:
       - mongodb
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - order-service
+      - product-service
+
 volumes:
   mongo-data:
