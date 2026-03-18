@@ -25,6 +25,8 @@ services:
 
   product-service:
     image: shany10/product-service:v1.0.0
+    ports:
+      - "3000:3000"
     restart: unless-stopped
     environment:
       NODE_ENV: production
