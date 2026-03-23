@@ -1,4 +1,4 @@
-name: CI/CD Docker (Internal Runners)
+name: CI/CD Docker
 
 on:
   push:
@@ -28,7 +28,7 @@ env:
 jobs:
   build:
     name: Build and push Docker images
-    runs-on: [self-hosted, linux, docker-internal]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +69,7 @@ jobs:
       - name: Build and push image
         env:
           IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           IMAGE_NAME="${CI_REGISTRY_IMAGE}/${{ matrix.service_name }}"
           IMAGE_FULL="${IMAGE_NAME}:${IMAGE_TAG}"
@@ -76,14 +77,14 @@ jobs:
           docker build -t "${IMAGE_FULL}" "${{ matrix.context }}"
           docker push "${IMAGE_FULL}"
 
-          if [ "${GITHUB_REF_NAME}" = "${GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH}" ]; then
+          if [ "${GITHUB_REF_NAME}" = "${DEFAULT_BRANCH}" ]; then
             docker tag "${IMAGE_FULL}" "${IMAGE_NAME}:latest"
             docker push "${IMAGE_NAME}:latest"
           fi
 
   deploy_production:
     name: Deploy production (manual)
-    runs-on: [self-hosted, linux, docker-internal]
+    runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_production == true && github.ref_name == github.event.repository.default_branch
 
