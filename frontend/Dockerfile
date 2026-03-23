@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
 RUN npm run build
@@ -15,7 +15,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.cjs ./server.cjs
