@@ -28,3 +28,8 @@ package-lock.json
 # Local notes
 README-docker-securite-local.md
 README-pipeline-local.md
+
+# Environment files (keep local only)
+.env
+.env.*
+!.env.example
