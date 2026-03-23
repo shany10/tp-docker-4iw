@@ -62,7 +62,7 @@ jobs:
       - name: Log in to container registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.REGISTRY || 'ghcr.io' }}
+          registry: ${{ vars.REGISTRY || 'docker.io' }}
           username: ${{ secrets.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
 
@@ -131,7 +131,7 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           CI_REGISTRY_IMAGE: ${{ vars.CI_REGISTRY_IMAGE }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          CI_REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
+          CI_REGISTRY: ${{ vars.REGISTRY || 'docker.io' }}
           CI_REGISTRY_USER: ${{ secrets.CI_REGISTRY_USER }}
           CI_REGISTRY_PASSWORD: ${{ secrets.CI_REGISTRY_PASSWORD }}
           IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
