@@ -75,6 +75,20 @@ services:
     networks:
       - backend
 
+  init-products:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      - product-service
+    environment:
+      API_URL: http://product-service:3000/api
+      TOKEN: ${PRODUCT_SEED_TOKEN:-efrei_super_pass}
+    volumes:
+      - ./scripts/init-products.sh:/scripts/init-products.sh:ro
+    command: ["sh", "/scripts/init-products.sh"]
+    networks:
+      - backend
+
   frontend:
     image: ${CI_REGISTRY_IMAGE}/frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -90,6 +104,7 @@ services:
       - auth-service
       - product-service
       - order-service
+      - init-products
     networks:
       - backend
 
