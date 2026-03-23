@@ -1,10 +1,30 @@
 services:
-  mongodb:
+  mongodb-auth:
     image: mongo:4.4
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo-auth-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+
+  mongodb-product:
+    image: mongo:4.4
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-product-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+
+  mongodb-order:
+    image: mongo:4.4
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo-order-data:/data/db
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=password
@@ -16,9 +36,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - MONGODB_URI=mongodb://admin:password@mongodb:27017/mydatabase?authSource=admin
+      - MONGODB_URI=mongodb://admin:password@mongodb-auth:27017/auth?authSource=admin
     depends_on:
-      - mongodb
+      - mongodb-auth
 
   order-service:
     build:
@@ -27,9 +47,9 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - MONGODB_URI=mongodb://admin:password@mongodb:27017/mydatabase?authSource=admin
+      - MONGODB_URI=mongodb://admin:password@mongodb-order:27017/orders?authSource=admin
     depends_on:
-      - mongodb
+      - mongodb-order
 
   product-service:
     build:
@@ -38,9 +58,21 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - MONGODB_URI=mongodb://admin:password@mongodb:27017/mydatabase?authSource=admin
+      - MONGODB_URI=mongodb://admin:password@mongodb-product:27017/ecommerce?authSource=admin
     depends_on:
-      - mongodb
+      - mongodb-product
+
+  init-products:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      - product-service
+    environment:
+      - API_URL=http://product-service:3000/api
+      - TOKEN=efrei_super_pass
+    volumes:
+      - ./scripts/init-products.sh:/scripts/init-products.sh:ro
+    command: ["sh", "/scripts/init-products.sh"]
 
   frontend:
     build:
@@ -52,6 +84,9 @@ services:
       - auth-service
       - order-service
       - product-service
+      - init-products
 
 volumes:
-  mongo-data:
+  mongo-auth-data:
+  mongo-product-data:
+  mongo-order-data:

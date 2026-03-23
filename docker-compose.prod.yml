@@ -1,12 +1,34 @@
 services:
-  mongodb:
+  mongodb-auth:
     image: mongo:4.4
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-password}
     volumes:
-      - mongo-data:/data/db
+      - mongo-auth-data:/data/db
+    networks:
+      - backend
+
+  mongodb-product:
+    image: mongo:4.4
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-password}
+    volumes:
+      - mongo-product-data:/data/db
+    networks:
+      - backend
+
+  mongodb-order:
+    image: mongo:4.4
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-password}
+    volumes:
+      - mongo-order-data:/data/db
     networks:
       - backend
 
@@ -16,10 +38,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb:27017/mydatabase?authSource=admin
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb-auth:27017/auth?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
     depends_on:
-      - mongodb
+      - mongodb-auth
     networks:
       - backend
 
@@ -31,10 +53,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb:27017/mydatabase?authSource=admin
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb-product:27017/ecommerce?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
     depends_on:
-      - mongodb
+      - mongodb-product
     networks:
       - backend
 
@@ -44,11 +66,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3002
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb:27017/mydatabase?authSource=admin
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb-order:27017/orders?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
       VITE_PRODUCT_SERVICE_URL: http://product-service:3000
     depends_on:
-      - mongodb
+      - mongodb-order
       - product-service
     networks:
       - backend
@@ -72,7 +94,9 @@ services:
       - backend
 
 volumes:
-  mongo-data:
+  mongo-auth-data:
+  mongo-product-data:
+  mongo-order-data:
 
 networks:
   backend:

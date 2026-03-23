@@ -1,23 +1,36 @@
-#!/bin/bash
+#!/bin/sh
 
-# Attendre que le service product soit disponible
-echo "Attente du service product..."
-sleep 10
+set -eu
 
-# URL du service
-API_URL="http://localhost:3000/api"
+# Surchargable via variables d'environnement.
+API_URL="${API_URL:-http://localhost:3000/api}"
+TOKEN="${TOKEN:-efrei_super_pass}"
 
-# Token d'authentification (à adapter selon votre configuration)
-TOKEN="efrei_super_pass"
+echo "Attente du service product (${API_URL}/health)..."
+i=0
+until curl -fsS "${API_URL}/health" >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ "$i" -ge 60 ]; then
+        echo "Le service product n'est pas disponible après 120s"
+        exit 1
+    fi
+    sleep 2
+done
 
-# Fonction pour créer un produit
+existing_products="$(curl -fsS "${API_URL}/products" || true)"
+products_count="$(printf '%s' "${existing_products}" | grep -o '"_id"' | wc -l | tr -d ' ')"
+if [ "${products_count}" -gt 0 ]; then
+    echo "${products_count} produit(s) déjà présent(s), seed ignoré."
+    exit 0
+fi
+
 create_product() {
-    local name=$1
-    local price=$2
-    local description=$3
-    local stock=$4
+    name="$1"
+    price="$2"
+    description="$3"
+    stock="$4"
 
-    curl -X POST "${API_URL}/products" \
+    curl -fsS -X POST "${API_URL}/products" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${TOKEN}" \
         -d "{
@@ -25,13 +38,12 @@ create_product() {
             \"price\": ${price},
             \"description\": \"${description}\",
             \"stock\": ${stock}
-        }"
-    echo
+        }" >/dev/null
+    echo "Produit créé: ${name}"
 }
 
 echo "Création des produits..."
 
-# Création de plusieurs produits
 create_product "Smartphone Galaxy S21" 899 "Dernier smartphone Samsung avec appareil photo 108MP" 15
 create_product "MacBook Pro M1" 1299 "Ordinateur portable Apple avec puce M1" 10
 create_product "PS5" 499 "Console de jeu dernière génération" 5
