@@ -1,0 +1,147 @@
+name: CI/CD Docker (Internal Runners)
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: "Deploy to production after build"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_REGISTRY_IMAGE: ${{ vars.CI_REGISTRY_IMAGE }}
+
+jobs:
+  build:
+    name: Build and push Docker images
+    runs-on: [self-hosted, linux, docker-internal]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service_name: frontend
+            context: ./frontend
+          - service_name: auth-service
+            context: ./services/auth-service
+          - service_name: product-service
+            context: ./services/product-service
+          - service_name: order-service
+            context: ./services/order-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required repository variable
+        run: |
+          test -n "${CI_REGISTRY_IMAGE}" || {
+            echo "Missing repository variable: CI_REGISTRY_IMAGE"
+            exit 1
+          }
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::8}"
+          echo "image_tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY || 'ghcr.io' }}
+          username: ${{ secrets.CI_REGISTRY_USER }}
+          password: ${{ secrets.CI_REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          IMAGE_NAME="${CI_REGISTRY_IMAGE}/${{ matrix.service_name }}"
+          IMAGE_FULL="${IMAGE_NAME}:${IMAGE_TAG}"
+
+          docker build -t "${IMAGE_FULL}" "${{ matrix.context }}"
+          docker push "${IMAGE_FULL}"
+
+          if [ "${GITHUB_REF_NAME}" = "${GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH}" ]; then
+            docker tag "${IMAGE_FULL}" "${IMAGE_NAME}:latest"
+            docker push "${IMAGE_NAME}:latest"
+          fi
+
+  deploy_production:
+    name: Deploy production (manual)
+    runs-on: [self-hosted, linux, docker-internal]
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_production == true && github.ref_name == github.event.repository.default_branch
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deploy variables and secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CI_REGISTRY_IMAGE: ${{ vars.CI_REGISTRY_IMAGE }}
+        run: |
+          test -n "${DEPLOY_HOST}"
+          test -n "${DEPLOY_USER}"
+          test -n "${DEPLOY_PATH}"
+          test -n "${SSH_PRIVATE_KEY}"
+          test -n "${JWT_SECRET}"
+          test -n "${CI_REGISTRY_IMAGE}"
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::8}"
+          echo "image_tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          CI_REGISTRY_IMAGE: ${{ vars.CI_REGISTRY_IMAGE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CI_REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
+          CI_REGISTRY_USER: ${{ secrets.CI_REGISTRY_USER }}
+          CI_REGISTRY_PASSWORD: ${{ secrets.CI_REGISTRY_PASSWORD }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -e
+            cd ${DEPLOY_PATH}
+            echo '${CI_REGISTRY_PASSWORD}' | docker login -u '${CI_REGISTRY_USER}' --password-stdin '${CI_REGISTRY}'
+            export IMAGE_TAG='${IMAGE_TAG}'
+            export CI_REGISTRY_IMAGE='${CI_REGISTRY_IMAGE}'
+            export JWT_SECRET='${JWT_SECRET}'
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+          "
