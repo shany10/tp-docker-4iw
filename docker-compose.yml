@@ -37,6 +37,8 @@ services:
       - "3001:3001"
     environment:
       - MONGODB_URI=mongodb://admin:password@mongodb-auth:27017/auth?authSource=admin
+      - JWT_SECRET=test_secret
+
     depends_on:
       - mongodb-auth
 
@@ -48,6 +50,8 @@ services:
       - "3002:3002"
     environment:
       - MONGODB_URI=mongodb://admin:password@mongodb-order:27017/orders?authSource=admin
+      - JWT_SECRET=test_secret
+
     depends_on:
       - mongodb-order
 
@@ -59,6 +63,8 @@ services:
       - "3000:3000"
     environment:
       - MONGODB_URI=mongodb://admin:password@mongodb-product:27017/ecommerce?authSource=admin
+      - JWT_SECRET=test_secret
+
     depends_on:
       - mongodb-product
 
@@ -69,7 +75,7 @@ services:
       - product-service
     environment:
       - API_URL=http://product-service:3000/api
-      - TOKEN=efrei_super_pass
+      - TOKEN=test_secret
     volumes:
       - ./scripts/init-products.sh:/scripts/init-products.sh:ro
     command: ["sh", "/scripts/init-products.sh"]
